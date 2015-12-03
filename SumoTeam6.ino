@@ -17,10 +17,10 @@ NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and
 #define QTR_THRESHOLD  1500 // microseconds
   
 // these might need to be tuned for different motor types
-#define REVERSE_SPEED     400 // 0 is stopped, 400 is full speed
-#define TURN_SPEED        400
-#define FORWARD_SPEED     200
-#define REVERSE_DURATION  200 // ms
+#define REVERSE_SPEED     250 // 0 is stopped, 400 is full speed
+#define TURN_SPEED        350
+#define FORWARD_SPEED     400
+#define REVERSE_DURATION  300 // ms
 #define TURN_DURATION     300 // ms
 #define PUSH_SPEED        50
  
@@ -30,6 +30,8 @@ Pushbutton button(ZUMO_BUTTON); // pushbutton on pin 12
  
 #define NUM_SENSORS 6
 unsigned int sensor_values[NUM_SENSORS];
+
+int forward = 0;
  
 ZumoReflectanceSensorArray sensors(QTR_NO_EMITTER_PIN);
 
@@ -38,16 +40,9 @@ void waitForButtonAndCountDown()
   digitalWrite(LED, HIGH);
   button.waitForButton();
   digitalWrite(LED, LOW);
-   
-  // play audible countdown
-  for (int i = 0; i < 3; i++)
-  {
-    delay(1000);
-    buzzer.playNote(NOTE_G(3), 200, 15);
-  }
-  delay(1000);
+  
   buzzer.playNote(NOTE_G(4), 500, 15);  
-  delay(1000);
+  delay(3000);
 }
  
 void setup()
@@ -62,6 +57,38 @@ void setup()
   waitForButtonAndCountDown();
 }
 
+void turnVechile(int direction) {
+  motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+  delay(REVERSE_DURATION + random(10, 250));
+
+  if(shouldAttack()) return;
+      
+  if(direction == 0) { // turn left
+      // if rightmost sensor detects line, reverse and turn to the left
+      motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
+
+      if(shouldAttack()) return;
+      
+  } else { // turn right
+      // if leftmost sensor detects line, reverse and turn to the right
+      motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+
+      if(shouldAttack()) return;
+  }
+  delay(TURN_DURATION + random(10, 250));
+  motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+  forward = 0;
+}
+
+boolean shouldAttack() {
+  if(sonar.ping_cm() <= 5) {
+      motors.setSpeeds(PUSH_SPEED, PUSH_SPEED);
+      forward = forward + 1;
+      return true;
+  }
+  return false;
+}
+
 void loop()
 {
   if (button.isPressed())
@@ -71,36 +98,55 @@ void loop()
     button.waitForRelease();
     waitForButtonAndCountDown();
   }
-   
 
   sensors.read(sensor_values);
 
-  if(sonar.ping_cm() <= 5) {
-    motors.setSpeeds(PUSH_SPEED, PUSH_SPEED);
-  } else {
-  
-    if (sensor_values[0] < QTR_THRESHOLD)
-    {
-      // if leftmost sensor detects line, reverse and turn to the right
-      motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
-      delay(REVERSE_DURATION + random(10, 500));
-      motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
-      delay(TURN_DURATION + random(10, 500));
-      motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
-    }
-    else if (sensor_values[5] < QTR_THRESHOLD)
-    {
-      // if rightmost sensor detects line, reverse and turn to the left
-      motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
-      delay(REVERSE_DURATION + random(10, 500));
-      motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
-      delay(TURN_DURATION + random(10, 500));
-      motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
-    }
-    else
-    {
-      // otherwise, go straight
-      motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
-    }
+  if (sensor_values[0] < QTR_THRESHOLD)
+  {
+    turnVechile(1);
+    /*
+    // if leftmost sensor detects line, reverse and turn to the right
+    motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+    delay(REVERSE_DURATION + random(10, 100));
+    motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+    delay(TURN_DURATION + random(10, 100));
+    motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+    forward = 0;
+    */
   }
+  else if (sensor_values[5] < QTR_THRESHOLD)
+  {
+    turnVechile(0);
+    /*
+    // if rightmost sensor detects line, reverse and turn to the left
+    motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+    delay(REVERSE_DURATION + random(10, 100));
+    motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
+    delay(TURN_DURATION + random(10, 100));
+    motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+    forward = 0;
+    */
+  }
+  else if(sonar.ping_cm() <= 10) {
+      motors.setSpeeds(PUSH_SPEED, PUSH_SPEED);
+      forward = forward + 1;
+  
+      if(forward >= 200) {
+        // if leftmost sensor detects line, reverse and turn to the right
+        motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+        delay(REVERSE_DURATION);
+        /*motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+        delay(TURN_DURATION);
+        motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+        */
+        forward = 0;
+      }
+  }
+  else
+  {
+    //forward = 0;
+    // otherwise, go straight
+    motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+  }
+  
 }
